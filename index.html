@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Air Quality Index (AQI) Executive Dashboard</title>
+  <!-- Chart.js CDN with fallback handling -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg-primary: #0f172a;
+      --bg-secondary: #1e293b;
+      --bg-card: #1e293b;
+      --border-color: #334155;
+      --text-primary: #f8fafc;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      --accent-blue: #38bdf8;
+      --accent-purple: #a855f7;
+      --good: #10b981;
+      --satisfactory: #84cc16;
+      --moderate: #eab308;
+      --poor: #f97316;
+      --very-poor: #ef4444;
+      --severe: #991b1b;
+      --card-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.2);
+    }
+
+    [data-theme="light"] {
+      --bg-primary: #f8fafc;
+      --bg-secondary: #ffffff;
+      --bg-card: #ffffff;
+      --border-color: #e2e8f0;
+      --text-primary: #0f172a;
+      --text-secondary: #475569;
+      --text-muted: #94a3b8;
+      --card-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -4px rgba(0, 0, 0, 0.02);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      transition: background-color 0.2s ease, border-color 0.2s ease;
+    }
+
+    body {
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Header */
+    header {
+      background-color: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    .header-container {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 1rem 1.5rem;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .brand-icon {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, #0284c7, #38bdf8);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+      color: white;
+      box-shadow: 0 4px 6px -1px rgba(2, 132, 199, 0.4);
+    }
+
+    .brand-text h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-text p {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+    }
+
+    .nav-tabs {
+      display: flex;
+      gap: 0.5rem;
+      background-color: var(--bg-primary);
+      padding: 0.25rem;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+    }
+
+    .nav-tab {
+      padding: 0.5rem 1rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+      border-radius: 6px;
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .nav-tab.active {
+      background-color: var(--bg-secondary);
+      color: var(--accent-blue);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .theme-toggle {
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+      padding: 0.5rem 0.85rem;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    /* Container */
+    main {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 1.5rem;
+      flex: 1;
+      width: 100%;
+    }
+
+    /* KPI Grid */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1.25rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .kpi-card {
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.25rem;
+      box-shadow: var(--card-shadow);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .kpi-card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 4px;
+      height: 100%;
+      background: var(--accent-blue);
+    }
+
+    .kpi-card.moderate::before { background: var(--moderate); }
+    .kpi-card.records::before { background: var(--accent-blue); }
+    .kpi-card.delhi::before { background: var(--very-poor); }
+    .kpi-card.clean::before { background: var(--good); }
+
+    .kpi-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.5rem;
+    }
+
+    .kpi-title {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: var(--text-secondary);
+      letter-spacing: 0.05em;
+    }
+
+    .kpi-badge {
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 0.2rem 0.5rem;
+      border-radius: 20px;
+      background: rgba(234, 179, 8, 0.2);
+      color: var(--moderate);
+    }
+
+    .kpi-badge.good { background: rgba(16, 185, 129, 0.2); color: var(--good); }
+    .kpi-badge.very-poor { background: rgba(239, 68, 68, 0.2); color: var(--very-poor); }
+    .kpi-badge.blue { background: rgba(56, 189, 248, 0.2); color: var(--accent-blue); }
+
+    .kpi-value {
+      font-size: 2rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      margin-bottom: 0.25rem;
+    }
+
+    .kpi-footer {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    /* AQI Legend Bar */
+    .aqi-scale-bar {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      margin-bottom: 1.5rem;
+      box-shadow: var(--card-shadow);
+    }
+
+    .scale-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      margin-bottom: 0.75rem;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .scale-steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 0.5rem;
+    }
+
+    .scale-step {
+      padding: 0.5rem;
+      border-radius: 6px;
+      text-align: center;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: white;
+    }
+
+    .step-good { background: var(--good); }
+    .step-satisfactory { background: var(--satisfactory); color: #1e293b; }
+    .step-moderate { background: var(--moderate); color: #1e293b; }
+    .step-poor { background: var(--poor); }
+    .step-very-poor { background: var(--very-poor); }
+    .step-severe { background: var(--severe); }
+
+    /* Grid Layouts */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(480px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .card {
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.25rem;
+      box-shadow: var(--card-shadow);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .card-title {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .card-subtitle {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      font-weight: 400;
+    }
+
+    .chart-container {
+      position: relative;
+      flex: 1;
+      min-height: 280px;
+      width: 100%;
+    }
+
+    /* Table styling */
+    .table-wrapper {
+      overflow-x: auto;
+      max-height: 480px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.85rem;
+    }
+
+    th {
+      background-color: var(--bg-primary);
+      color: var(--text-secondary);
+      font-weight: 700;
+      padding: 0.75rem 1rem;
+      position: sticky;
+      top: 0;
+      border-bottom: 2px solid var(--border-color);
+      white-space: nowrap;
+    }
+
+    td {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border-color);
+      color: var(--text-primary);
+      white-space: nowrap;
+    }
+
+    tr:hover td {
+      background-color: rgba(56, 189, 248, 0.05);
+    }
+
+    .search-input {
+      padding: 0.5rem 0.75rem;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
+      font-size: 0.85rem;
+      outline: none;
+      width: 240px;
+    }
+
+    .search-input:focus {
+      border-color: var(--accent-blue);
+    }
+
+    .pill {
+      display: inline-block;
+      padding: 0.2rem 0.5rem;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: white;
+    }
+
+    /* Tab content hiding */
+    .tab-pane {
+      display: none;
+    }
+
+    .tab-pane.active {
+      display: block;
+    }
+
+    /* Footer */
+    footer {
+      background-color: var(--bg-secondary);
+      border-top: 1px solid var(--border-color);
+      padding: 1.25rem 1.5rem;
+      text-align: center;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      margin-top: 2rem;
+    }
+
+    @media (max-width: 768px) {
+      .grid-2, .grid-3 {
+        grid-template-columns: 1fr;
+      }
+      .search-input {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body data-theme="dark">
+
+  <!-- Header -->
+  <header>
+    <div class="header-container">
+      <div class="brand">
+        <div class="brand-icon">💨</div>
+        <div class="brand-text">
+          <h1>India Air Quality Index (AQI) Dashboard</h1>
+          <p>CPCB Ambient Air Quality Monitoring | 235,785 Observations Analyzed</p>
+        </div>
+      </div>
+
+      <nav class="nav-tabs">
+        <button class="nav-tab active" onclick="switchTab('overview')">📊 National Overview</button>
+        <button class="nav-tab" onclick="switchTab('geography')">🗺️ State & City Rankings</button>
+        <button class="nav-tab" onclick="switchTab('seasons')">🌦️ Seasonal & Trends</button>
+        <button class="nav-tab" onclick="switchTab('data')">📑 Data Health & Shares</button>
+      </nav>
+
+      <button class="theme-toggle" onclick="toggleTheme()" id="themeBtn">☀️ Light Mode</button>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main>
+
+    <!-- TAB 1: OVERVIEW -->
+    <div id="tab-overview" class="tab-pane active">
+      <!-- KPI Row -->
+      <div class="kpi-grid">
+        <div class="kpi-card moderate">
+          <div class="kpi-header">
+            <span class="kpi-title">National Average AQI</span>
+            <span class="kpi-badge">Moderate</span>
+          </div>
+          <div class="kpi-value">111.13</div>
+          <div class="kpi-footer">Median: 92 | Std Dev: 71.45</div>
+        </div>
+
+        <div class="kpi-card records">
+          <div class="kpi-header">
+            <span class="kpi-title">Monitored Observations</span>
+            <span class="kpi-badge blue">Complete</span>
+          </div>
+          <div class="kpi-value">235,785</div>
+          <div class="kpi-footer">Across 32 States & 291 Cities</div>
+        </div>
+
+        <div class="kpi-card delhi">
+          <div class="kpi-header">
+            <span class="kpi-title">Highest State Avg AQI</span>
+            <span class="kpi-badge very-poor">Delhi</span>
+          </div>
+          <div class="kpi-value">206.42</div>
+          <div class="kpi-footer">Poor / Severe | 1,125 observations</div>
+        </div>
+
+        <div class="kpi-card clean">
+          <div class="kpi-header">
+            <span class="kpi-title">Cleanest State Avg AQI</span>
+            <span class="kpi-badge good">Mizoram</span>
+          </div>
+          <div class="kpi-value">47.25</div>
+          <div class="kpi-footer">Good Category | 1,000 observations</div>
+        </div>
+      </div>
+
+      <!-- AQI Scale Explanation Bar -->
+      <div class="aqi-scale-bar">
+        <div class="scale-title">National Air Quality Index (NAQI) Standard Bands</div>
+        <div class="scale-steps">
+          <div class="scale-step step-good">Good (0–50)</div>
+          <div class="scale-step step-satisfactory">Satisfactory (51–100)</div>
+          <div class="scale-step step-moderate">Moderate (101–200)</div>
+          <div class="scale-step step-poor">Poor (201–300)</div>
+          <div class="scale-step step-very-poor">Very Poor (301–400)</div>
+          <div class="scale-step step-severe">Severe (401–500)</div>
+        </div>
+      </div>
+
+      <!-- Main Charts Grid -->
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">
+            <span>📈 Monthly Average AQI Timeline</span>
+            <span class="card-subtitle">Peak in Winter (Dec) • Low in Monsoon (Aug)</span>
+          </div>
+          <div class="chart-container">
+            <canvas id="monthlyTrendChart"></canvas>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <span>🎯 Observations by AQI Category</span>
+            <span class="card-subtitle">37.7% Satisfactory • 32.9% Moderate</span>
+          </div>
+          <div class="chart-container">
+            <canvas id="categoryDonutChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">
+            <span>🏭 Top 10 Most Impacted States</span>
+            <span class="card-subtitle">Ranked by Average AQI</span>
+          </div>
+          <div class="chart-container">
+            <canvas id="topStatesChart"></canvas>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <span>💨 Dominant Pollutants Distribution</span>
+            <span class="card-subtitle">Share of Mentions (PM10 & PM2.5 dominate 79.7%)</span>
+          </div>
+          <div class="chart-container">
+            <canvas id="pollutantsChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: GEOGRAPHIC RANKINGS -->
+    <div id="tab-geography" class="tab-pane">
+      <div class="grid-2" style="margin-bottom: 1.5rem;">
+        <div class="card">
+          <div class="card-title">
+            <span>🔥 10 Most Polluted Cities in India</span>
+            <span class="card-subtitle">Cities with ≥30 monitoring records</span>
+          </div>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>City / Area</th>
+                  <th>State</th>
+                  <th>Avg AQI</th>
+                  <th>Category</th>
+                </tr>
+              </thead>
+              <tbody id="topCitiesTable"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <span>🌿 Cleanest States / Territories</span>
+            <span class="card-subtitle">Lowest average AQI across India</span>
+          </div>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>State</th>
+                  <th>Avg AQI</th>
+                  <th>Median</th>
+                  <th>Observations</th>
+                </tr>
+              </thead>
+              <tbody id="cleanStatesTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          <span>📍 All 32 States & Union Territories AQI Table</span>
+          <input type="text" id="stateSearch" class="search-input" placeholder="🔍 Search state..." onkeyup="filterStatesTable()">
+        </div>
+        <div class="table-wrapper">
+          <table id="allStatesTable">
+            <thead>
+              <tr>
+                <th>State / UT</th>
+                <th>Average AQI</th>
+                <th>Median AQI</th>
+                <th>Max AQI</th>
+                <th>Monitored Cities</th>
+                <th>Observations</th>
+                <th>Status Category</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: SEASONS & TEMPORAL -->
+    <div id="tab-seasons" class="tab-pane">
+      <div class="kpi-grid">
+        <div class="kpi-card delhi">
+          <div class="kpi-header">
+            <span class="kpi-title">Winter (Dec–Feb)</span>
+            <span class="kpi-badge very-poor">Highest</span>
+          </div>
+          <div class="kpi-value">143.13</div>
+          <div class="kpi-footer">Inversion & Biomass burning • 59,302 records</div>
+        </div>
+
+        <div class="kpi-card clean">
+          <div class="kpi-header">
+            <span class="kpi-title">Monsoon (Jun–Sep)</span>
+            <span class="kpi-badge good">Cleanest</span>
+          </div>
+          <div class="kpi-value">72.12</div>
+          <div class="kpi-footer">Rain wash-out effect • 72,893 records</div>
+        </div>
+
+        <div class="kpi-card moderate">
+          <div class="kpi-header">
+            <span class="kpi-title">Post-Monsoon (Oct–Nov)</span>
+            <span class="kpi-badge">Spike</span>
+          </div>
+          <div class="kpi-value">134.35</div>
+          <div class="kpi-footer">Crop stubble burning • 40,004 records</div>
+        </div>
+
+        <div class="kpi-card moderate">
+          <div class="kpi-header">
+            <span class="kpi-title">Summer (Mar–May)</span>
+            <span class="kpi-badge">Moderate</span>
+          </div>
+          <div class="kpi-value">111.39</div>
+          <div class="kpi-footer">High wind dispersal • 63,586 records</div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">
+            <span>🌦️ Seasonal AQI Comparison</span>
+            <span class="card-subtitle">Significant reduction during Monsoon</span>
+          </div>
+          <div class="chart-container">
+            <canvas id="seasonChart"></canvas>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <span>📅 Day-of-Week AQI Variation</span>
+            <span class="card-subtitle">Remarkably steady across Monday to Sunday (~111)</span>
+          </div>
+          <div class="chart-container">
+            <canvas id="weekdayChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 4: DATA HEALTH & SHARES -->
+    <div id="tab-data" class="tab-pane">
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">
+            <span>✅ Data Cleaning & Quality Audit</span>
+            <span class="card-subtitle">Pipeline Verification Checks</span>
+          </div>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Audit Check</th>
+                  <th>Result</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td>Source Records</td><td>235,785 rows</td><td><span class="pill" style="background:var(--accent-blue);">Verified</span></td></tr>
+                <tr><td>Duplicate Rows</td><td>0 duplicates</td><td><span class="pill" style="background:var(--good);">Passed</span></td></tr>
+                <tr><td>Missing Critical Values</td><td>0 missing in Date, State, AQI</td><td><span class="pill" style="background:var(--good);">Passed</span></td></tr>
+                <tr><td>AQI Range Check (0–500)</td><td>Min: 0, Max: 500</td><td><span class="pill" style="background:var(--good);">Passed</span></td></tr>
+                <tr><td>CPCB Category Consistency</td><td>100% matched to standards</td><td><span class="pill" style="background:var(--good);">Passed</span></td></tr>
+                <tr><td>Station Count (> 0)</td><td>All stations positive</td><td><span class="pill" style="background:var(--good);">Passed</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <span>📊 State AQI Category Distribution (%)</span>
+            <span class="card-subtitle">Share of Good vs Severe days per state</span>
+          </div>
+          <div class="table-wrapper">
+            <table id="stateSharesTable">
+              <thead>
+                <tr>
+                  <th>State</th>
+                  <th>% Good</th>
+                  <th>% Satisfactory</th>
+                  <th>% Moderate</th>
+                  <th>% Poor+</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer>
+    <p>Air Quality Index (AQI) Data Analytics & Visualization (DAV) Project | Central Pollution Control Board (CPCB) Standard</p>
+    <p style="margin-top: 0.35rem; color: var(--text-muted);">Self-contained dashboard generated from verified analytics pipeline</p>
+  </footer>
+
+  <script>
+    const DATA = {"categories": [{"category": "Good", "observations": 41971, "share_percent": 17.8}, {"category": "Satisfactory", "observations": 88897, "share_percent": 37.7}, {"category": "Moderate", "observations": 77537, "share_percent": 32.88}, {"category": "Poor", "observations": 21154, "share_percent": 8.97}, {"category": "Very Poor", "observations": 5672, "share_percent": 2.41}, {"category": "Severe", "observations": 554, "share_percent": 0.23}], "pollutants": [{"pollutant": "PM10", "observations": 135806, "share_of_pollutant_mentions_percent": 50.6}, {"pollutant": "PM2.5", "observations": 78030, "share_of_pollutant_mentions_percent": 29.08}, {"pollutant": "O3", "observations": 24951, "share_of_pollutant_mentions_percent": 9.3}, {"pollutant": "CO", "observations": 18148, "share_of_pollutant_mentions_percent": 6.76}, {"pollutant": "NO2", "observations": 6025, "share_of_pollutant_mentions_percent": 2.25}, {"pollutant": "SO2", "observations": 5284, "share_of_pollutant_mentions_percent": 1.97}, {"pollutant": "NH3", "observations": 83, "share_of_pollutant_mentions_percent": 0.03}, {"pollutant": "SO3", "observations": 40, "share_of_pollutant_mentions_percent": 0.01}], "seasons": [{"season": "Winter", "observations": 59302, "average_aqi": 143.13, "median_aqi": 122, "maximum_aqi": 500}, {"season": "Summer", "observations": 63586, "average_aqi": 111.39, "median_aqi": 99, "maximum_aqi": 500}, {"season": "Monsoon", "observations": 72893, "average_aqi": 72.12, "median_aqi": 61, "maximum_aqi": 484}, {"season": "Post-monsoon", "observations": 40004, "average_aqi": 134.35, "median_aqi": 115, "maximum_aqi": 500}], "weekdays": [{"weekday": "Monday", "observations": 32876, "average_aqi": 110.02, "median_aqi": 91}, {"weekday": "Tuesday", "observations": 33996, "average_aqi": 111.69, "median_aqi": 93}, {"weekday": "Wednesday", "observations": 33722, "average_aqi": 111.88, "median_aqi": 93}, {"weekday": "Thursday", "observations": 33713, "average_aqi": 110.65, "median_aqi": 92}, {"weekday": "Friday", "observations": 33957, "average_aqi": 111.18, "median_aqi": 92}, {"weekday": "Saturday", "observations": 33995, "average_aqi": 111.39, "median_aqi": 92}, {"weekday": "Sunday", "observations": 33526, "average_aqi": 111.04, "median_aqi": 92}], "states": [{"state": "Delhi", "observations": 1125, "average_aqi": 206.42, "median_aqi": 194.0, "maximum_aqi": 494, "cities": 1}, {"state": "Jharkhand", "observations": 721, "average_aqi": 164.94, "median_aqi": 154.0, "maximum_aqi": 436, "cities": 3}, {"state": "Himachal Pradesh", "observations": 1066, "average_aqi": 160.26, "median_aqi": 151.0, "maximum_aqi": 438, "cities": 1}, {"state": "Bihar", "observations": 21553, "average_aqi": 157.16, "median_aqi": 132.0, "maximum_aqi": 488, "cities": 25}, {"state": "Chandigarh", "observations": 1125, "average_aqi": 141.56, "median_aqi": 127.0, "maximum_aqi": 412, "cities": 1}, {"state": "Haryana", "observations": 21706, "average_aqi": 140.85, "median_aqi": 120.0, "maximum_aqi": 469, "cities": 25}, {"state": "Rajasthan", "observations": 26585, "average_aqi": 127.99, "median_aqi": 113.0, "maximum_aqi": 452, "cities": 34}, {"state": "Tripura", "observations": 1035, "average_aqi": 126.7, "median_aqi": 95.0, "maximum_aqi": 362, "cities": 1}, {"state": "Uttar Pradesh", "observations": 21609, "average_aqi": 126.42, "median_aqi": 108.0, "maximum_aqi": 494, "cities": 20}, {"state": "Odisha", "observations": 11099, "average_aqi": 124.88, "median_aqi": 108.0, "maximum_aqi": 406, "cities": 16}, {"state": "Punjab", "observations": 8488, "average_aqi": 117.85, "median_aqi": 104.0, "maximum_aqi": 417, "cities": 8}, {"state": "West Bengal", "observations": 6921, "average_aqi": 114.19, "median_aqi": 94.0, "maximum_aqi": 394, "cities": 7}, {"state": "Assam", "observations": 4921, "average_aqi": 114.12, "median_aqi": 71.0, "maximum_aqi": 442, "cities": 6}, {"state": "Gujarat", "observations": 6215, "average_aqi": 110.63, "median_aqi": 97.0, "maximum_aqi": 384, "cities": 7}, {"state": "Madhya Pradesh", "observations": 15477, "average_aqi": 108.72, "median_aqi": 96.0, "maximum_aqi": 500, "cities": 15}, {"state": "Maharashtra", "observations": 22459, "average_aqi": 103.64, "median_aqi": 98.0, "maximum_aqi": 460, "cities": 31}, {"state": "Manipur", "observations": 826, "average_aqi": 100.93, "median_aqi": 100.0, "maximum_aqi": 500, "cities": 1}, {"state": "Uttarakhand", "observations": 2332, "average_aqi": 87.9, "median_aqi": 79.0, "maximum_aqi": 327, "cities": 3}, {"state": "Telangana", "observations": 1125, "average_aqi": 81.01, "median_aqi": 82.0, "maximum_aqi": 171, "cities": 1}, {"state": "Nagaland", "observations": 957, "average_aqi": 80.46, "median_aqi": 68.0, "maximum_aqi": 230, "cities": 1}, {"state": "Chhattisgarh", "observations": 5556, "average_aqi": 78.99, "median_aqi": 72.0, "maximum_aqi": 345, "cities": 8}, {"state": "Andhra Pradesh", "observations": 7077, "average_aqi": 77.51, "median_aqi": 66.0, "maximum_aqi": 500, "cities": 9}, {"state": "Jammu and Kashmir", "observations": 438, "average_aqi": 69.5, "median_aqi": 58.0, "maximum_aqi": 251, "cities": 1}, {"state": "Kerala", "observations": 5574, "average_aqi": 68.07, "median_aqi": 63.0, "maximum_aqi": 293, "cities": 8}, {"state": "Tamil Nadu", "observations": 11954, "average_aqi": 67.76, "median_aqi": 58.0, "maximum_aqi": 399, "cities": 26}, {"state": "Meghalaya", "observations": 874, "average_aqi": 62.73, "median_aqi": 46.0, "maximum_aqi": 484, "cities": 1}, {"state": "Karnataka", "observations": 23494, "average_aqi": 62.67, "median_aqi": 54.0, "maximum_aqi": 500, "cities": 27}, {"state": "Andaman and Nicobar Islands", "observations": 58, "average_aqi": 57.71, "median_aqi": 57.5, "maximum_aqi": 150, "cities": 1}, {"state": "Puducherry", "observations": 1070, "average_aqi": 56.51, "median_aqi": 51.0, "maximum_aqi": 274, "cities": 1}, {"state": "Arunachal Pradesh", "observations": 509, "average_aqi": 54.49, "median_aqi": 48.0, "maximum_aqi": 183, "cities": 1}, {"state": "Sikkim", "observations": 836, "average_aqi": 53.69, "median_aqi": 52.0, "maximum_aqi": 265, "cities": 1}, {"state": "Mizoram", "observations": 1000, "average_aqi": 47.25, "median_aqi": 37.0, "maximum_aqi": 183, "cities": 1}], "cities": [{"state": "Assam", "area": "Byrnihat", "observations": 656, "average_aqi": 240.0, "median_aqi": 250.5, "maximum_aqi": 442}, {"state": "Bihar", "area": "Begusarai", "observations": 582, "average_aqi": 206.68, "median_aqi": 186.5, "maximum_aqi": 474}, {"state": "Delhi", "area": "Delhi", "observations": 1125, "average_aqi": 206.42, "median_aqi": 194.0, "maximum_aqi": 494}, {"state": "Uttar Pradesh", "area": "Greater Noida", "observations": 1123, "average_aqi": 201.6, "median_aqi": 192.0, "maximum_aqi": 494}, {"state": "Rajasthan", "area": "Sri Ganganagar", "observations": 709, "average_aqi": 197.94, "median_aqi": 186.0, "maximum_aqi": 441}, {"state": "Haryana", "area": "Gurugram", "observations": 1120, "average_aqi": 190.85, "median_aqi": 185.0, "maximum_aqi": 469}, {"state": "Bihar", "area": "Darbhanga", "observations": 256, "average_aqi": 190.09, "median_aqi": 129.0, "maximum_aqi": 473}, {"state": "Haryana", "area": "Dharuhera", "observations": 764, "average_aqi": 185.72, "median_aqi": 180.0, "maximum_aqi": 447}, {"state": "Uttar Pradesh", "area": "NOIDA", "observations": 1124, "average_aqi": 183.99, "median_aqi": 167.0, "maximum_aqi": 456}, {"state": "Uttar Pradesh", "area": "Ghaziabad", "observations": 1124, "average_aqi": 183.01, "median_aqi": 169.0, "maximum_aqi": 438}, {"state": "Haryana", "area": "Faridabad", "observations": 1094, "average_aqi": 181.93, "median_aqi": 166.5, "maximum_aqi": 460}, {"state": "Rajasthan", "area": "Bhiwadi", "observations": 1093, "average_aqi": 181.61, "median_aqi": 173.0, "maximum_aqi": 447}, {"state": "Bihar", "area": "Siwan", "observations": 757, "average_aqi": 181.23, "median_aqi": 150.0, "maximum_aqi": 488}, {"state": "Bihar", "area": "Patna", "observations": 1125, "average_aqi": 179.93, "median_aqi": 166.0, "maximum_aqi": 424}, {"state": "Rajasthan", "area": "Hanumangarh", "observations": 707, "average_aqi": 177.82, "median_aqi": 156.0, "maximum_aqi": 447}, {"state": "Bihar", "area": "Chhapra", "observations": 928, "average_aqi": 176.25, "median_aqi": 149.5, "maximum_aqi": 452}, {"state": "Uttar Pradesh", "area": "Muzaffarnagar", "observations": 1024, "average_aqi": 175.57, "median_aqi": 165.0, "maximum_aqi": 399}, {"state": "Jharkhand", "area": "Dhanbad", "observations": 546, "average_aqi": 173.42, "median_aqi": 162.0, "maximum_aqi": 436}, {"state": "Bihar", "area": "Samastipur", "observations": 880, "average_aqi": 170.89, "median_aqi": 138.5, "maximum_aqi": 459}, {"state": "Bihar", "area": "Saharsa", "observations": 903, "average_aqi": 169.87, "median_aqi": 144.0, "maximum_aqi": 454}, {"state": "Haryana", "area": "Bahadurgarh", "observations": 921, "average_aqi": 165.31, "median_aqi": 144.0, "maximum_aqi": 453}, {"state": "Bihar", "area": "Araria", "observations": 838, "average_aqi": 165.14, "median_aqi": 145.0, "maximum_aqi": 399}, {"state": "Madhya Pradesh", "area": "Singrauli", "observations": 1028, "average_aqi": 165.09, "median_aqi": 145.5, "maximum_aqi": 407}, {"state": "Bihar", "area": "Bhagalpur", "observations": 1086, "average_aqi": 164.7, "median_aqi": 134.0, "maximum_aqi": 448}, {"state": "Bihar", "area": "Hajipur", "observations": 1083, "average_aqi": 164.53, "median_aqi": 158.0, "maximum_aqi": 427}, {"state": "Odisha", "area": "Angul", "observations": 509, "average_aqi": 163.7, "median_aqi": 160.0, "maximum_aqi": 370}, {"state": "Bihar", "area": "Bettiah", "observations": 789, "average_aqi": 162.19, "median_aqi": 137.0, "maximum_aqi": 470}, {"state": "Bihar", "area": "Katihar", "observations": 953, "average_aqi": 161.84, "median_aqi": 130.0, "maximum_aqi": 465}, {"state": "Bihar", "area": "Purnia", "observations": 882, "average_aqi": 161.51, "median_aqi": 130.0, "maximum_aqi": 460}, {"state": "Bihar", "area": "Muzaffarpur", "observations": 1121, "average_aqi": 161.42, "median_aqi": 146.0, "maximum_aqi": 453}, {"state": "Himachal Pradesh", "area": "Baddi", "observations": 1066, "average_aqi": 160.26, "median_aqi": 151.0, "maximum_aqi": 438}, {"state": "Bihar", "area": "Munger", "observations": 930, "average_aqi": 158.86, "median_aqi": 147.0, "maximum_aqi": 410}, {"state": "Uttar Pradesh", "area": "Meerut", "observations": 1121, "average_aqi": 158.35, "median_aqi": 145.0, "maximum_aqi": 424}, {"state": "Uttar Pradesh", "area": "Baghpat", "observations": 981, "average_aqi": 157.29, "median_aqi": 147.0, "maximum_aqi": 394}, {"state": "Rajasthan", "area": "Bikaner", "observations": 737, "average_aqi": 156.76, "median_aqi": 145.0, "maximum_aqi": 403}, {"state": "Haryana", "area": "Sonipat", "observations": 703, "average_aqi": 156.24, "median_aqi": 132.0, "maximum_aqi": 455}, {"state": "Haryana", "area": "Ballabgarh", "observations": 928, "average_aqi": 155.53, "median_aqi": 137.0, "maximum_aqi": 400}, {"state": "Haryana", "area": "Charkhi Dadri", "observations": 1051, "average_aqi": 155.45, "median_aqi": 148.0, "maximum_aqi": 460}, {"state": "Bihar", "area": "Arrah", "observations": 867, "average_aqi": 153.6, "median_aqi": 126.0, "maximum_aqi": 398}, {"state": "Bihar", "area": "Buxar", "observations": 508, "average_aqi": 152.15, "median_aqi": 128.5, "maximum_aqi": 443}, {"state": "Haryana", "area": "Manesar", "observations": 891, "average_aqi": 151.84, "median_aqi": 124.0, "maximum_aqi": 412}, {"state": "Odisha", "area": "Bileipada", "observations": 781, "average_aqi": 151.45, "median_aqi": 151.0, "maximum_aqi": 384}, {"state": "Rajasthan", "area": "Jhunjhunu", "observations": 759, "average_aqi": 151.2, "median_aqi": 136.0, "maximum_aqi": 422}, {"state": "Haryana", "area": "Hisar", "observations": 771, "average_aqi": 150.69, "median_aqi": 138.0, "maximum_aqi": 456}, {"state": "Bihar", "area": "Aurangabad", "observations": 839, "average_aqi": 150.52, "median_aqi": 134.0, "maximum_aqi": 406}, {"state": "Haryana", "area": "Rohtak", "observations": 955, "average_aqi": 149.57, "median_aqi": 131.0, "maximum_aqi": 437}, {"state": "Uttar Pradesh", "area": "Bulandshahr", "observations": 1115, "average_aqi": 148.06, "median_aqi": 141.0, "maximum_aqi": 416}, {"state": "Punjab", "area": "Mandi Gobindgarh", "observations": 1010, "average_aqi": 147.45, "median_aqi": 135.0, "maximum_aqi": 391}, {"state": "Haryana", "area": "Fatehabad", "observations": 781, "average_aqi": 145.86, "median_aqi": 133.0, "maximum_aqi": 466}, {"state": "Bihar", "area": "Rajgir", "observations": 825, "average_aqi": 145.82, "median_aqi": 113.0, "maximum_aqi": 461}, {"state": "West Bengal", "area": "Asansol", "observations": 1066, "average_aqi": 145.45, "median_aqi": 128.0, "maximum_aqi": 394}, {"state": "Madhya Pradesh", "area": "Gwalior", "observations": 1089, "average_aqi": 144.78, "median_aqi": 137.0, "maximum_aqi": 392}, {"state": "Jharkhand", "area": "Jorapokhar", "observations": 149, "average_aqi": 144.58, "median_aqi": 132.0, "maximum_aqi": 279}, {"state": "Assam", "area": "Nalbari", "observations": 767, "average_aqi": 144.38, "median_aqi": 127.0, "maximum_aqi": 384}, {"state": "Odisha", "area": "Barbil", "observations": 519, "average_aqi": 144.25, "median_aqi": 143.0, "maximum_aqi": 304}, {"state": "Rajasthan", "area": "Dausa", "observations": 742, "average_aqi": 143.09, "median_aqi": 139.0, "maximum_aqi": 379}, {"state": "Rajasthan", "area": "Tonk", "observations": 671, "average_aqi": 142.9, "median_aqi": 131.0, "maximum_aqi": 368}, {"state": "Chandigarh", "area": "Chandigarh", "observations": 1125, "average_aqi": 141.56, "median_aqi": 127.0, "maximum_aqi": 412}, {"state": "Haryana", "area": "Jind", "observations": 888, "average_aqi": 141.49, "median_aqi": 108.0, "maximum_aqi": 447}, {"state": "Odisha", "area": "Balasore", "observations": 525, "average_aqi": 141.33, "median_aqi": 118.0, "maximum_aqi": 406}, {"state": "Haryana", "area": "Bhiwani", "observations": 934, "average_aqi": 141.24, "median_aqi": 117.0, "maximum_aqi": 437}, {"state": "Rajasthan", "area": "Dholpur", "observations": 658, "average_aqi": 140.54, "median_aqi": 117.0, "maximum_aqi": 417}, {"state": "Bihar", "area": "Kishanganj", "observations": 930, "average_aqi": 139.56, "median_aqi": 129.0, "maximum_aqi": 379}, {"state": "Bihar", "area": "Motihari", "observations": 942, "average_aqi": 139.42, "median_aqi": 116.0, "maximum_aqi": 448}, {"state": "Rajasthan", "area": "Sikar", "observations": 755, "average_aqi": 138.99, "median_aqi": 127.0, "maximum_aqi": 452}, {"state": "Rajasthan", "area": "Churu", "observations": 698, "average_aqi": 138.99, "median_aqi": 121.0, "maximum_aqi": 452}, {"state": "Haryana", "area": "Kaithal", "observations": 926, "average_aqi": 138.53, "median_aqi": 118.5, "maximum_aqi": 436}, {"state": "West Bengal", "area": "Durgapur", "observations": 1024, "average_aqi": 137.54, "median_aqi": 122.0, "maximum_aqi": 392}, {"state": "Haryana", "area": "Yamunanagar", "observations": 876, "average_aqi": 137.24, "median_aqi": 123.0, "maximum_aqi": 371}, {"state": "Rajasthan", "area": "Bharatpur", "observations": 782, "average_aqi": 137.13, "median_aqi": 126.0, "maximum_aqi": 396}, {"state": "Uttar Pradesh", "area": "Hapur", "observations": 1055, "average_aqi": 137.13, "median_aqi": 113.0, "maximum_aqi": 471}, {"state": "Gujarat", "area": "Vapi", "observations": 813, "average_aqi": 135.72, "median_aqi": 110.0, "maximum_aqi": 366}, {"state": "Rajasthan", "area": "Nagaur", "observations": 659, "average_aqi": 135.26, "median_aqi": 131.0, "maximum_aqi": 353}, {"state": "Haryana", "area": "Kurukshetra", "observations": 942, "average_aqi": 135.05, "median_aqi": 112.0, "maximum_aqi": 449}, {"state": "Bihar", "area": "Sasaram", "observations": 907, "average_aqi": 135.05, "median_aqi": 115.0, "maximum_aqi": 381}, {"state": "Bihar", "area": "Bihar Sharif", "observations": 824, "average_aqi": 134.81, "median_aqi": 112.0, "maximum_aqi": 425}, {"state": "West Bengal", "area": "Barrackpore", "observations": 470, "average_aqi": 134.46, "median_aqi": 110.5, "maximum_aqi": 366}, {"state": "Rajasthan", "area": "Bundi", "observations": 642, "average_aqi": 133.21, "median_aqi": 124.0, "maximum_aqi": 353}, {"state": "Rajasthan", "area": "Jaipur", "observations": 1125, "average_aqi": 131.38, "median_aqi": 123.0, "maximum_aqi": 364}, {"state": "Odisha", "area": "Rourkela", "observations": 872, "average_aqi": 131.29, "median_aqi": 122.0, "maximum_aqi": 344}, {"state": "Uttar Pradesh", "area": "Lucknow", "observations": 1125, "average_aqi": 131.12, "median_aqi": 123.0, "maximum_aqi": 311}, {"state": "Rajasthan", "area": "Kota", "observations": 1116, "average_aqi": 131.1, "median_aqi": 120.0, "maximum_aqi": 375}, {"state": "Odisha", "area": "Byasanagar", "observations": 518, "average_aqi": 130.57, "median_aqi": 117.5, "maximum_aqi": 324}, {"state": "Odisha", "area": "Talcher", "observations": 956, "average_aqi": 129.68, "median_aqi": 102.0, "maximum_aqi": 383}, {"state": "Rajasthan", "area": "Chittorgarh", "observations": 691, "average_aqi": 129.45, "median_aqi": 120.0, "maximum_aqi": 339}, {"state": "Rajasthan", "area": "Jaisalmer", "observations": 691, "average_aqi": 128.31, "median_aqi": 115.0, "maximum_aqi": 374}, {"state": "Odisha", "area": "Cuttack", "observations": 516, "average_aqi": 128.26, "median_aqi": 101.0, "maximum_aqi": 355}, {"state": "Haryana", "area": "Panipat", "observations": 824, "average_aqi": 128.23, "median_aqi": 116.0, "maximum_aqi": 384}, {"state": "Punjab", "area": "Ludhiana", "observations": 1112, "average_aqi": 128.06, "median_aqi": 111.0, "maximum_aqi": 408}, {"state": "Rajasthan", "area": "Jalore", "observations": 512, "average_aqi": 127.78, "median_aqi": 120.0, "maximum_aqi": 379}, {"state": "Tripura", "area": "Agartala", "observations": 1035, "average_aqi": 126.7, "median_aqi": 95.0, "maximum_aqi": 362}, {"state": "Rajasthan", "area": "Jodhpur", "observations": 1114, "average_aqi": 126.66, "median_aqi": 121.0, "maximum_aqi": 355}, {"state": "Bihar", "area": "Gaya", "observations": 1117, "average_aqi": 126.39, "median_aqi": 110.0, "maximum_aqi": 397}, {"state": "Punjab", "area": "Rupnagar", "observations": 999, "average_aqi": 126.11, "median_aqi": 117.0, "maximum_aqi": 336}, {"state": "Haryana", "area": "Sirsa", "observations": 863, "average_aqi": 126.1, "median_aqi": 105.0, "maximum_aqi": 414}, {"state": "Odisha", "area": "Baripada", "observations": 807, "average_aqi": 125.31, "median_aqi": 112.0, "maximum_aqi": 370}, {"state": "Uttar Pradesh", "area": "Khurja", "observations": 935, "average_aqi": 125.27, "median_aqi": 111.0, "maximum_aqi": 394}, {"state": "Rajasthan", "area": "Pali", "observations": 1051, "average_aqi": 124.63, "median_aqi": 113.0, "maximum_aqi": 344}, {"state": "Odisha", "area": "Bhubaneswar", "observations": 531, "average_aqi": 123.9, "median_aqi": 98.0, "maximum_aqi": 380}, {"state": "Madhya Pradesh", "area": "Katni", "observations": 1050, "average_aqi": 123.7, "median_aqi": 114.0, "maximum_aqi": 334}, {"state": "Maharashtra", "area": "Navi Mumbai", "observations": 1118, "average_aqi": 122.85, "median_aqi": 113.0, "maximum_aqi": 460}, {"state": "Madhya Pradesh", "area": "Mandideep", "observations": 1056, "average_aqi": 122.16, "median_aqi": 111.5, "maximum_aqi": 372}, {"state": "Punjab", "area": "Amritsar", "observations": 1041, "average_aqi": 121.93, "median_aqi": 106.0, "maximum_aqi": 368}, {"state": "Maharashtra", "area": "Ahmednagar", "observations": 348, "average_aqi": 121.68, "median_aqi": 110.0, "maximum_aqi": 277}, {"state": "Odisha", "area": "Suakati", "observations": 799, "average_aqi": 120.97, "median_aqi": 111.0, "maximum_aqi": 309}, {"state": "Rajasthan", "area": "Sawai Madhopur", "observations": 703, "average_aqi": 120.61, "median_aqi": 114.0, "maximum_aqi": 328}, {"state": "Madhya Pradesh", "area": "Ujjain", "observations": 988, "average_aqi": 119.79, "median_aqi": 110.0, "maximum_aqi": 500}, {"state": "Assam", "area": "Guwahati", "observations": 1119, "average_aqi": 119.71, "median_aqi": 88.0, "maximum_aqi": 376}, {"state": "West Bengal", "area": "Howrah", "observations": 1125, "average_aqi": 119.58, "median_aqi": 90.0, "maximum_aqi": 350}, {"state": "Madhya Pradesh", "area": "Bhopal", "observations": 1114, "average_aqi": 118.76, "median_aqi": 110.0, "maximum_aqi": 317}, {"state": "Maharashtra", "area": "Ulhasnagar", "observations": 611, "average_aqi": 118.74, "median_aqi": 109.0, "maximum_aqi": 319}, {"state": "Madhya Pradesh", "area": "Pithampur", "observations": 1103, "average_aqi": 118.12, "median_aqi": 112.0, "maximum_aqi": 314}, {"state": "Odisha", "area": "Nayagarh", "observations": 751, "average_aqi": 118.06, "median_aqi": 113.0, "maximum_aqi": 336}, {"state": "Rajasthan", "area": "Banswara", "observations": 743, "average_aqi": 116.78, "median_aqi": 108.0, "maximum_aqi": 326}, {"state": "Odisha", "area": "Rairangpur", "observations": 748, "average_aqi": 116.73, "median_aqi": 105.0, "maximum_aqi": 320}, {"state": "Haryana", "area": "Narnaul", "observations": 880, "average_aqi": 116.71, "median_aqi": 103.0, "maximum_aqi": 435}, {"state": "Gujarat", "area": "Surat", "observations": 707, "average_aqi": 116.57, "median_aqi": 80.0, "maximum_aqi": 384}, {"state": "Maharashtra", "area": "Badlapur", "observations": 632, "average_aqi": 116.52, "median_aqi": 110.0, "maximum_aqi": 310}, {"state": "Andhra Pradesh", "area": "Visakhapatnam", "observations": 1046, "average_aqi": 116.11, "median_aqi": 104.0, "maximum_aqi": 319}, {"state": "Rajasthan", "area": "Baran", "observations": 645, "average_aqi": 114.24, "median_aqi": 106.0, "maximum_aqi": 322}, {"state": "Gujarat", "area": "Ahmedabad", "observations": 1121, "average_aqi": 113.6, "median_aqi": 110.0, "maximum_aqi": 282}, {"state": "Rajasthan", "area": "Bhilwara", "observations": 606, "average_aqi": 112.76, "median_aqi": 99.0, "maximum_aqi": 331}, {"state": "Madhya Pradesh", "area": "Jabalpur", "observations": 1101, "average_aqi": 112.11, "median_aqi": 101.0, "maximum_aqi": 368}, {"state": "Odisha", "area": "Keonjhar", "observations": 755, "average_aqi": 112.06, "median_aqi": 97.0, "maximum_aqi": 341}, {"state": "Maharashtra", "area": "Pune", "observations": 962, "average_aqi": 111.97, "median_aqi": 109.0, "maximum_aqi": 366}, {"state": "Maharashtra", "area": "Malegaon", "observations": 399, "average_aqi": 111.96, "median_aqi": 110.0, "maximum_aqi": 298}, {"state": "Uttar Pradesh", "area": "Kanpur", "observations": 1125, "average_aqi": 111.61, "median_aqi": 104.0, "maximum_aqi": 358}, {"state": "Haryana", "area": "Panchkula", "observations": 903, "average_aqi": 111.6, "median_aqi": 99.0, "maximum_aqi": 330}, {"state": "Assam", "area": "Nagaon", "observations": 723, "average_aqi": 111.24, "median_aqi": 89.0, "maximum_aqi": 386}, {"state": "Haryana", "area": "Ambala", "observations": 900, "average_aqi": 111.2, "median_aqi": 97.0, "maximum_aqi": 447}, {"state": "Maharashtra", "area": "Nagpur", "observations": 1108, "average_aqi": 111.11, "median_aqi": 99.5, "maximum_aqi": 342}, {"state": "Maharashtra", "area": "Jalgaon", "observations": 664, "average_aqi": 110.51, "median_aqi": 104.0, "maximum_aqi": 321}, {"state": "Maharashtra", "area": "Parbhani", "observations": 567, "average_aqi": 110.43, "median_aqi": 102.0, "maximum_aqi": 335}, {"state": "Maharashtra", "area": "Jalna", "observations": 580, "average_aqi": 110.07, "median_aqi": 100.5, "maximum_aqi": 335}, {"state": "Rajasthan", "area": "Udaipur", "observations": 1108, "average_aqi": 110.05, "median_aqi": 103.0, "maximum_aqi": 313}, {"state": "Punjab", "area": "Jalandhar", "observations": 1107, "average_aqi": 109.85, "median_aqi": 99.0, "maximum_aqi": 333}, {"state": "Maharashtra", "area": "Thane", "observations": 976, "average_aqi": 109.29, "median_aqi": 102.0, "maximum_aqi": 298}, {"state": "Gujarat", "area": "Ankleshwar", "observations": 961, "average_aqi": 108.86, "median_aqi": 95.0, "maximum_aqi": 308}, {"state": "Haryana", "area": "Karnal", "observations": 937, "average_aqi": 108.82, "median_aqi": 94.0, "maximum_aqi": 369}, {"state": "Punjab", "area": "Bathinda", "observations": 1009, "average_aqi": 108.8, "median_aqi": 95.0, "maximum_aqi": 400}, {"state": "Chhattisgarh", "area": "Kunjemura", "observations": 622, "average_aqi": 108.76, "median_aqi": 103.5, "maximum_aqi": 345}, {"state": "Maharashtra", "area": "Kalyan", "observations": 1010, "average_aqi": 108.52, "median_aqi": 104.0, "maximum_aqi": 394}, {"state": "Maharashtra", "area": "Bhiwandi", "observations": 587, "average_aqi": 108.36, "median_aqi": 102.0, "maximum_aqi": 270}, {"state": "Maharashtra", "area": "Chandrapur", "observations": 1104, "average_aqi": 108.32, "median_aqi": 100.0, "maximum_aqi": 354}, {"state": "Rajasthan", "area": "Karauli", "observations": 686, "average_aqi": 108.3, "median_aqi": 93.0, "maximum_aqi": 394}, {"state": "Gujarat", "area": "Nandesari", "observations": 438, "average_aqi": 107.76, "median_aqi": 97.0, "maximum_aqi": 335}, {"state": "Tamil Nadu", "area": "Gummidipoondi", "observations": 882, "average_aqi": 107.39, "median_aqi": 97.0, "maximum_aqi": 326}, {"state": "Rajasthan", "area": "Jhalawar", "observations": 755, "average_aqi": 106.94, "median_aqi": 96.0, "maximum_aqi": 337}, {"state": "Maharashtra", "area": "Mumbai", "observations": 1124, "average_aqi": 105.93, "median_aqi": 92.0, "maximum_aqi": 281}, {"state": "Uttar Pradesh", "area": "Vrindavan", "observations": 1064, "average_aqi": 105.25, "median_aqi": 104.0, "maximum_aqi": 298}, {"state": "Rajasthan", "area": "Barmer", "observations": 749, "average_aqi": 104.97, "median_aqi": 99.0, "maximum_aqi": 344}, {"state": "Gujarat", "area": "Vatva", "observations": 1058, "average_aqi": 104.63, "median_aqi": 97.0, "maximum_aqi": 298}, {"state": "Uttar Pradesh", "area": "Moradabad", "observations": 1125, "average_aqi": 104.06, "median_aqi": 101.0, "maximum_aqi": 320}, {"state": "Rajasthan", "area": "Dungarpur", "observations": 388, "average_aqi": 103.74, "median_aqi": 95.0, "maximum_aqi": 294}, {"state": "Madhya Pradesh", "area": "Dewas", "observations": 1035, "average_aqi": 103.22, "median_aqi": 101.0, "maximum_aqi": 327}, {"state": "Punjab", "area": "Patiala", "observations": 1110, "average_aqi": 103.19, "median_aqi": 95.5, "maximum_aqi": 368}, {"state": "Madhya Pradesh", "area": "Ratlam", "observations": 1059, "average_aqi": 103.13, "median_aqi": 105.0, "maximum_aqi": 282}, {"state": "Maharashtra", "area": "Dhule", "observations": 616, "average_aqi": 103.09, "median_aqi": 100.0, "maximum_aqi": 276}, {"state": "Maharashtra", "area": "Nanded", "observations": 586, "average_aqi": 102.81, "median_aqi": 101.5, "maximum_aqi": 285}, {"state": "Karnataka", "area": "Tumakuru", "observations": 594, "average_aqi": 102.67, "median_aqi": 103.0, "maximum_aqi": 254}, {"state": "Bihar", "area": "Manguraha", "observations": 681, "average_aqi": 102.22, "median_aqi": 88.0, "maximum_aqi": 332}, {"state": "West Bengal", "area": "Kolkata", "observations": 1125, "average_aqi": 102.03, "median_aqi": 78.0, "maximum_aqi": 314}, {"state": "Uttar Pradesh", "area": "Gorakhpur", "observations": 1064, "average_aqi": 101.43, "median_aqi": 99.5, "maximum_aqi": 300}, {"state": "Maharashtra", "area": "Belapur", "observations": 620, "average_aqi": 101.16, "median_aqi": 104.5, "maximum_aqi": 300}, {"state": "Rajasthan", "area": "Ajmer", "observations": 1056, "average_aqi": 101.09, "median_aqi": 95.0, "maximum_aqi": 295}, {"state": "Manipur", "area": "Imphal", "observations": 826, "average_aqi": 100.93, "median_aqi": 100.0, "maximum_aqi": 500}, {"state": "Punjab", "area": "Khanna", "observations": 1100, "average_aqi": 100.16, "median_aqi": 90.0, "maximum_aqi": 417}, {"state": "Rajasthan", "area": "Pratapgarh", "observations": 741, "average_aqi": 100.05, "median_aqi": 97.0, "maximum_aqi": 314}, {"state": "Kerala", "area": "Kochi", "observations": 570, "average_aqi": 99.98, "median_aqi": 86.0, "maximum_aqi": 293}, {"state": "Maharashtra", "area": "Boisar", "observations": 379, "average_aqi": 99.92, "median_aqi": 97.0, "maximum_aqi": 299}, {"state": "Tamil Nadu", "area": "Dindigul", "observations": 387, "average_aqi": 98.94, "median_aqi": 71.0, "maximum_aqi": 352}, {"state": "Maharashtra", "area": "Aurangabad", "observations": 1058, "average_aqi": 98.76, "median_aqi": 95.5, "maximum_aqi": 298}, {"state": "Uttarakhand", "area": "Dehradun", "observations": 910, "average_aqi": 98.16, "median_aqi": 89.0, "maximum_aqi": 327}, {"state": "Uttarakhand", "area": "Kashipur", "observations": 670, "average_aqi": 98.14, "median_aqi": 94.0, "maximum_aqi": 269}, {"state": "Maharashtra", "area": "Virar", "observations": 404, "average_aqi": 98.11, "median_aqi": 86.0, "maximum_aqi": 302}, {"state": "Madhya Pradesh", "area": "Indore", "observations": 1112, "average_aqi": 97.64, "median_aqi": 89.0, "maximum_aqi": 284}, {"state": "Maharashtra", "area": "Solapur", "observations": 1033, "average_aqi": 97.34, "median_aqi": 98.0, "maximum_aqi": 232}, {"state": "Maharashtra", "area": "Mira Bhayandar", "observations": 380, "average_aqi": 96.92, "median_aqi": 87.0, "maximum_aqi": 284}, {"state": "Odisha", "area": "Tensa", "observations": 750, "average_aqi": 96.84, "median_aqi": 91.0, "maximum_aqi": 337}, {"state": "Rajasthan", "area": "Rajsamand", "observations": 718, "average_aqi": 96.82, "median_aqi": 84.0, "maximum_aqi": 320}, {"state": "Maharashtra", "area": "Akola", "observations": 676, "average_aqi": 94.3, "median_aqi": 94.0, "maximum_aqi": 330}, {"state": "Maharashtra", "area": "Pimpri Chinchwad", "observations": 591, "average_aqi": 94.22, "median_aqi": 84.0, "maximum_aqi": 272}, {"state": "Karnataka", "area": "Raichur", "observations": 679, "average_aqi": 94.06, "median_aqi": 99.0, "maximum_aqi": 222}, {"state": "Gujarat", "area": "Gandhi Nagar", "observations": 1117, "average_aqi": 93.99, "median_aqi": 86.0, "maximum_aqi": 278}, {"state": "Uttar Pradesh", "area": "Prayagraj", "observations": 1121, "average_aqi": 93.37, "median_aqi": 87.0, "maximum_aqi": 286}, {"state": "Haryana", "area": "Palwal", "observations": 914, "average_aqi": 93.16, "median_aqi": 86.0, "maximum_aqi": 339}, {"state": "Maharashtra", "area": "Mahad", "observations": 620, "average_aqi": 93.03, "median_aqi": 93.0, "maximum_aqi": 242}, {"state": "Uttar Pradesh", "area": "Jhansi", "observations": 1012, "average_aqi": 92.55, "median_aqi": 84.0, "maximum_aqi": 277}, {"state": "Maharashtra", "area": "Kolhapur", "observations": 722, "average_aqi": 92.48, "median_aqi": 82.0, "maximum_aqi": 338}, {"state": "Chhattisgarh", "area": "Tumidih", "observations": 388, "average_aqi": 91.34, "median_aqi": 83.0, "maximum_aqi": 250}, {"state": "Madhya Pradesh", "area": "Sagar", "observations": 1072, "average_aqi": 90.88, "median_aqi": 82.0, "maximum_aqi": 326}, {"state": "Maharashtra", "area": "Amravati", "observations": 694, "average_aqi": 90.86, "median_aqi": 92.0, "maximum_aqi": 314}, {"state": "Haryana", "area": "Mandikhera", "observations": 915, "average_aqi": 90.66, "median_aqi": 91.0, "maximum_aqi": 360}, {"state": "Rajasthan", "area": "Sirohi", "observations": 665, "average_aqi": 90.12, "median_aqi": 83.0, "maximum_aqi": 335}, {"state": "Rajasthan", "area": "Alwar", "observations": 1110, "average_aqi": 89.93, "median_aqi": 83.0, "maximum_aqi": 293}, {"state": "Uttar Pradesh", "area": "Firozabad", "observations": 1088, "average_aqi": 88.34, "median_aqi": 80.0, "maximum_aqi": 308}, {"state": "Odisha", "area": "Brajrajnagar", "observations": 762, "average_aqi": 87.02, "median_aqi": 85.0, "maximum_aqi": 270}, {"state": "West Bengal", "area": "Haldia", "observations": 1053, "average_aqi": 86.83, "median_aqi": 66.0, "maximum_aqi": 322}, {"state": "Maharashtra", "area": "Latur", "observations": 659, "average_aqi": 85.93, "median_aqi": 83.0, "maximum_aqi": 241}, {"state": "Tamil Nadu", "area": "Hosur", "observations": 370, "average_aqi": 85.66, "median_aqi": 85.5, "maximum_aqi": 232}, {"state": "West Bengal", "area": "Siliguri", "observations": 1058, "average_aqi": 85.53, "median_aqi": 70.0, "maximum_aqi": 290}, {"state": "Maharashtra", "area": "Sangli", "observations": 625, "average_aqi": 85.36, "median_aqi": 86.0, "maximum_aqi": 254}, {"state": "Maharashtra", "area": "Nashik", "observations": 1006, "average_aqi": 84.61, "median_aqi": 77.5, "maximum_aqi": 270}, {"state": "Uttar Pradesh", "area": "Agra", "observations": 1125, "average_aqi": 84.23, "median_aqi": 77.0, "maximum_aqi": 278}, {"state": "Tamil Nadu", "area": "Chengalpattu", "observations": 374, "average_aqi": 82.44, "median_aqi": 68.0, "maximum_aqi": 399}, {"state": "Tamil Nadu", "area": "Ranipet", "observations": 123, "average_aqi": 82.31, "median_aqi": 69.0, "maximum_aqi": 224}, {"state": "Telangana", "area": "Hyderabad", "observations": 1125, "average_aqi": 81.01, "median_aqi": 82.0, "maximum_aqi": 171}, {"state": "Karnataka", "area": "Bidar", "observations": 587, "average_aqi": 80.93, "median_aqi": 81.0, "maximum_aqi": 259}, {"state": "Nagaland", "area": "Kohima", "observations": 957, "average_aqi": 80.46, "median_aqi": 68.0, "maximum_aqi": 230}, {"state": "Chhattisgarh", "area": "Raipur", "observations": 847, "average_aqi": 80.21, "median_aqi": 81.0, "maximum_aqi": 176}, {"state": "Kerala", "area": "Kollam", "observations": 914, "average_aqi": 79.27, "median_aqi": 73.0, "maximum_aqi": 272}, {"state": "Tamil Nadu", "area": "Tiruppur", "observations": 680, "average_aqi": 77.39, "median_aqi": 68.0, "maximum_aqi": 267}, {"state": "Uttar Pradesh", "area": "Bareilly", "observations": 1033, "average_aqi": 77.16, "median_aqi": 66.0, "maximum_aqi": 266}, {"state": "Andhra Pradesh", "area": "Rajamahendravaram", "observations": 1086, "average_aqi": 76.82, "median_aqi": 60.0, "maximum_aqi": 324}, {"state": "Karnataka", "area": "Kolar", "observations": 561, "average_aqi": 76.47, "median_aqi": 67.0, "maximum_aqi": 342}, {"state": "Chhattisgarh", "area": "Chhal", "observations": 643, "average_aqi": 76.05, "median_aqi": 72.0, "maximum_aqi": 246}, {"state": "Madhya Pradesh", "area": "Satna", "observations": 1038, "average_aqi": 75.96, "median_aqi": 68.0, "maximum_aqi": 275}, {"state": "Andhra Pradesh", "area": "Tirumala", "observations": 100, "average_aqi": 75.77, "median_aqi": 73.0, "maximum_aqi": 181}, {"state": "Karnataka", "area": "Bengaluru", "observations": 1125, "average_aqi": 74.89, "median_aqi": 72.0, "maximum_aqi": 172}, {"state": "Tamil Nadu", "area": "Chennai", "observations": 1123, "average_aqi": 74.01, "median_aqi": 68.0, "maximum_aqi": 245}, {"state": "Andhra Pradesh", "area": "Chittoor", "observations": 655, "average_aqi": 73.96, "median_aqi": 67.0, "maximum_aqi": 348}, {"state": "Tamil Nadu", "area": "Vellore", "observations": 401, "average_aqi": 73.66, "median_aqi": 68.0, "maximum_aqi": 245}, {"state": "Karnataka", "area": "Dharwad", "observations": 663, "average_aqi": 73.5, "median_aqi": 70.0, "maximum_aqi": 295}, {"state": "Tamil Nadu", "area": "Salem", "observations": 485, "average_aqi": 73.37, "median_aqi": 73.0, "maximum_aqi": 214}, {"state": "Chhattisgarh", "area": "Milupara", "observations": 432, "average_aqi": 73.13, "median_aqi": 69.0, "maximum_aqi": 227}, {"state": "Chhattisgarh", "area": "Korba", "observations": 827, "average_aqi": 73.01, "median_aqi": 68.0, "maximum_aqi": 218}, {"state": "Chhattisgarh", "area": "Bhilai", "observations": 861, "average_aqi": 72.47, "median_aqi": 68.0, "maximum_aqi": 266}, {"state": "Karnataka", "area": "Hubballi", "observations": 1066, "average_aqi": 72.24, "median_aqi": 64.0, "maximum_aqi": 222}, {"state": "Andhra Pradesh", "area": "Vijayawada", "observations": 688, "average_aqi": 71.94, "median_aqi": 65.0, "maximum_aqi": 500}, {"state": "Karnataka", "area": "Mangalore", "observations": 1003, "average_aqi": 70.36, "median_aqi": 62.0, "maximum_aqi": 235}, {"state": "Karnataka", "area": "Belgaum", "observations": 822, "average_aqi": 69.75, "median_aqi": 56.5, "maximum_aqi": 248}, {"state": "Karnataka", "area": "Udupi", "observations": 523, "average_aqi": 69.7, "median_aqi": 70.0, "maximum_aqi": 232}, {"state": "Tamil Nadu", "area": "Coimbatore", "observations": 736, "average_aqi": 69.56, "median_aqi": 61.0, "maximum_aqi": 343}, {"state": "Jammu and Kashmir", "area": "Srinagar", "observations": 438, "average_aqi": 69.5, "median_aqi": 58.0, "maximum_aqi": 251}, {"state": "Tamil Nadu", "area": "Karur", "observations": 155, "average_aqi": 69.26, "median_aqi": 66.0, "maximum_aqi": 181}, {"state": "Andhra Pradesh", "area": "Amaravati", "observations": 1060, "average_aqi": 68.98, "median_aqi": 58.0, "maximum_aqi": 270}, {"state": "Chhattisgarh", "area": "Bilaspur", "observations": 936, "average_aqi": 68.96, "median_aqi": 62.5, "maximum_aqi": 259}, {"state": "Karnataka", "area": "Koppal", "observations": 853, "average_aqi": 68.59, "median_aqi": 61.0, "maximum_aqi": 384}, {"state": "Andhra Pradesh", "area": "Tirupati", "observations": 1027, "average_aqi": 68.26, "median_aqi": 60.0, "maximum_aqi": 311}, {"state": "Karnataka", "area": "Haveri", "observations": 813, "average_aqi": 67.84, "median_aqi": 58.0, "maximum_aqi": 262}, {"state": "Kerala", "area": "Kozhikode", "observations": 281, "average_aqi": 67.37, "median_aqi": 69.0, "maximum_aqi": 107}, {"state": "Tamil Nadu", "area": "Pudukottai", "observations": 163, "average_aqi": 67.36, "median_aqi": 60.0, "maximum_aqi": 205}, {"state": "Andhra Pradesh", "area": "Anantapur", "observations": 799, "average_aqi": 67.2, "median_aqi": 64.0, "maximum_aqi": 191}, {"state": "Uttar Pradesh", "area": "Varanasi", "observations": 1125, "average_aqi": 67.12, "median_aqi": 61.0, "maximum_aqi": 216}, {"state": "Andhra Pradesh", "area": "Kadapa", "observations": 616, "average_aqi": 66.92, "median_aqi": 57.0, "maximum_aqi": 260}, {"state": "Uttarakhand", "area": "Rishikesh", "observations": 752, "average_aqi": 66.36, "median_aqi": 59.0, "maximum_aqi": 208}, {"state": "Kerala", "area": "Kannur", "observations": 825, "average_aqi": 66.02, "median_aqi": 66.0, "maximum_aqi": 134}, {"state": "Karnataka", "area": "Yadgir", "observations": 994, "average_aqi": 65.65, "median_aqi": 64.0, "maximum_aqi": 240}, {"state": "Tamil Nadu", "area": "Cuddalore", "observations": 667, "average_aqi": 65.39, "median_aqi": 51.0, "maximum_aqi": 329}, {"state": "Kerala", "area": "Thrissur", "observations": 863, "average_aqi": 64.62, "median_aqi": 58.0, "maximum_aqi": 181}, {"state": "Karnataka", "area": "Kalaburagi", "observations": 954, "average_aqi": 64.43, "median_aqi": 57.0, "maximum_aqi": 214}, {"state": "Karnataka", "area": "Chikkaballapur", "observations": 1059, "average_aqi": 63.98, "median_aqi": 56.0, "maximum_aqi": 203}, {"state": "Kerala", "area": "Eloor", "observations": 805, "average_aqi": 63.33, "median_aqi": 62.0, "maximum_aqi": 109}, {"state": "Karnataka", "area": "Hassan", "observations": 770, "average_aqi": 63.15, "median_aqi": 61.0, "maximum_aqi": 212}, {"state": "Meghalaya", "area": "Shillong", "observations": 874, "average_aqi": 62.73, "median_aqi": 46.0, "maximum_aqi": 484}, {"state": "Tamil Nadu", "area": "Tiruchirappalli", "observations": 195, "average_aqi": 61.36, "median_aqi": 58.0, "maximum_aqi": 318}, {"state": "Tamil Nadu", "area": "Ooty", "observations": 696, "average_aqi": 60.95, "median_aqi": 56.0, "maximum_aqi": 164}, {"state": "Karnataka", "area": "Ramanagara", "observations": 1051, "average_aqi": 60.58, "median_aqi": 53.0, "maximum_aqi": 277}, {"state": "Tamil Nadu", "area": "Virudhunagar", "observations": 241, "average_aqi": 60.5, "median_aqi": 53.0, "maximum_aqi": 179}, {"state": "Madhya Pradesh", "area": "Damoh", "observations": 814, "average_aqi": 58.65, "median_aqi": 50.0, "maximum_aqi": 250}, {"state": "Karnataka", "area": "Karwar", "observations": 308, "average_aqi": 58.03, "median_aqi": 56.0, "maximum_aqi": 222}, {"state": "Tamil Nadu", "area": "Thoothukudi", "observations": 1087, "average_aqi": 57.94, "median_aqi": 53.0, "maximum_aqi": 272}, {"state": "Andaman and Nicobar Islands", "area": "Sri Vijaya Puram", "observations": 58, "average_aqi": 57.71, "median_aqi": 57.5, "maximum_aqi": 150}, {"state": "Karnataka", "area": "Davanagere", "observations": 915, "average_aqi": 56.85, "median_aqi": 54.0, "maximum_aqi": 233}, {"state": "Tamil Nadu", "area": "Kanchipuram", "observations": 429, "average_aqi": 56.85, "median_aqi": 54.0, "maximum_aqi": 320}, {"state": "Puducherry", "area": "Puducherry", "observations": 1070, "average_aqi": 56.51, "median_aqi": 51.0, "maximum_aqi": 274}, {"state": "Tamil Nadu", "area": "Madurai", "observations": 187, "average_aqi": 55.92, "median_aqi": 54.0, "maximum_aqi": 109}, {"state": "Karnataka", "area": "Gadag", "observations": 881, "average_aqi": 55.24, "median_aqi": 49.0, "maximum_aqi": 500}, {"state": "Karnataka", "area": "Shivamogga", "observations": 1085, "average_aqi": 54.78, "median_aqi": 54.0, "maximum_aqi": 116}, {"state": "Arunachal Pradesh", "area": "Naharlagun", "observations": 509, "average_aqi": 54.49, "median_aqi": 48.0, "maximum_aqi": 183}, {"state": "Kerala", "area": "Thiruvananthapuram", "observations": 1118, "average_aqi": 54.15, "median_aqi": 49.0, "maximum_aqi": 267}, {"state": "Sikkim", "area": "Gangtok", "observations": 836, "average_aqi": 53.69, "median_aqi": 52.0, "maximum_aqi": 265}, {"state": "Madhya Pradesh", "area": "Maihar", "observations": 818, "average_aqi": 52.99, "median_aqi": 48.0, "maximum_aqi": 262}, {"state": "Tamil Nadu", "area": "Ariyalur", "observations": 696, "average_aqi": 51.67, "median_aqi": 44.5, "maximum_aqi": 236}, {"state": "Tamil Nadu", "area": "Nagapattinam", "observations": 122, "average_aqi": 51.48, "median_aqi": 47.0, "maximum_aqi": 113}, {"state": "Karnataka", "area": "Mysuru", "observations": 1083, "average_aqi": 51.02, "median_aqi": 51.0, "maximum_aqi": 92}, {"state": "Karnataka", "area": "Vijayapura", "observations": 1006, "average_aqi": 50.35, "median_aqi": 46.0, "maximum_aqi": 192}, {"state": "Tamil Nadu", "area": "Ramanathapuram", "observations": 824, "average_aqi": 47.96, "median_aqi": 41.0, "maximum_aqi": 246}, {"state": "Assam", "area": "Sivasagar", "observations": 911, "average_aqi": 47.91, "median_aqi": 51.0, "maximum_aqi": 91}, {"state": "Assam", "area": "Silchar", "observations": 745, "average_aqi": 47.48, "median_aqi": 48.0, "maximum_aqi": 89}, {"state": "Karnataka", "area": "Chikkamagaluru", "observations": 937, "average_aqi": 47.46, "median_aqi": 45.0, "maximum_aqi": 132}, {"state": "Mizoram", "area": "Aizawl", "observations": 1000, "average_aqi": 47.25, "median_aqi": 37.0, "maximum_aqi": 183}, {"state": "Kerala", "area": "Ernakulam", "observations": 198, "average_aqi": 46.94, "median_aqi": 45.0, "maximum_aqi": 118}, {"state": "Karnataka", "area": "Bagalkot", "observations": 1025, "average_aqi": 46.46, "median_aqi": 46.0, "maximum_aqi": 96}, {"state": "Tamil Nadu", "area": "Thanjavur", "observations": 162, "average_aqi": 44.72, "median_aqi": 44.0, "maximum_aqi": 140}, {"state": "Tamil Nadu", "area": "Palkalaiperur", "observations": 520, "average_aqi": 43.32, "median_aqi": 41.0, "maximum_aqi": 103}, {"state": "Karnataka", "area": "Chamarajanagar", "observations": 1075, "average_aqi": 43.06, "median_aqi": 43.0, "maximum_aqi": 96}, {"state": "Karnataka", "area": "Madikeri", "observations": 1062, "average_aqi": 37.81, "median_aqi": 36.0, "maximum_aqi": 159}, {"state": "Tamil Nadu", "area": "Tirunelveli", "observations": 227, "average_aqi": 32.11, "median_aqi": 31.0, "maximum_aqi": 49}], "monthly": [{"month": "2022-04-01 00:00:00", "observations": 4471, "average_aqi": 140.68, "median_aqi": 123, "maximum_aqi": 432, "month_str": "Apr 2022"}, {"month": "2022-05-01 00:00:00", "observations": 4604, "average_aqi": 122.35, "median_aqi": 110, "maximum_aqi": 439, "month_str": "May 2022"}, {"month": "2022-06-01 00:00:00", "observations": 4464, "average_aqi": 106.25, "median_aqi": 86, "maximum_aqi": 425, "month_str": "Jun 2022"}, {"month": "2022-07-01 00:00:00", "observations": 4622, "average_aqi": 61.29, "median_aqi": 56, "maximum_aqi": 310, "month_str": "Jul 2022"}, {"month": "2022-08-01 00:00:00", "observations": 4703, "average_aqi": 64.69, "median_aqi": 58, "maximum_aqi": 306, "month_str": "Aug 2022"}, {"month": "2022-09-01 00:00:00", "observations": 4721, "average_aqi": 70.02, "median_aqi": 63, "maximum_aqi": 360, "month_str": "Sep 2022"}, {"month": "2022-10-01 00:00:00", "observations": 5160, "average_aqi": 111.07, "median_aqi": 90, "maximum_aqi": 400, "month_str": "Oct 2022"}, {"month": "2022-11-01 00:00:00", "observations": 5185, "average_aqi": 164.38, "median_aqi": 146, "maximum_aqi": 460, "month_str": "Nov 2022"}, {"month": "2022-12-01 00:00:00", "observations": 5527, "average_aqi": 173.9, "median_aqi": 152, "maximum_aqi": 500, "month_str": "Dec 2022"}, {"month": "2023-01-01 00:00:00", "observations": 5622, "average_aqi": 171.74, "median_aqi": 145, "maximum_aqi": 473, "month_str": "Jan 2023"}, {"month": "2023-02-01 00:00:00", "observations": 5304, "average_aqi": 144.54, "median_aqi": 126, "maximum_aqi": 447, "month_str": "Feb 2023"}, {"month": "2023-03-01 00:00:00", "observations": 6315, "average_aqi": 114.56, "median_aqi": 98, "maximum_aqi": 500, "month_str": "Mar 2023"}, {"month": "2023-04-01 00:00:00", "observations": 6104, "average_aqi": 114.11, "median_aqi": 101, "maximum_aqi": 500, "month_str": "Apr 2023"}, {"month": "2023-05-01 00:00:00", "observations": 6223, "average_aqi": 102.75, "median_aqi": 89, "maximum_aqi": 460, "month_str": "May 2023"}, {"month": "2023-06-01 00:00:00", "observations": 6223, "average_aqi": 88.41, "median_aqi": 79, "maximum_aqi": 484, "month_str": "Jun 2023"}, {"month": "2023-07-01 00:00:00", "observations": 6581, "average_aqi": 64.68, "median_aqi": 56, "maximum_aqi": 459, "month_str": "Jul 2023"}, {"month": "2023-08-01 00:00:00", "observations": 6728, "average_aqi": 77.02, "median_aqi": 70, "maximum_aqi": 399, "month_str": "Aug 2023"}, {"month": "2023-09-01 00:00:00", "observations": 6556, "average_aqi": 70.83, "median_aqi": 61, "maximum_aqi": 363, "month_str": "Sep 2023"}, {"month": "2023-10-01 00:00:00", "observations": 6975, "average_aqi": 114.16, "median_aqi": 105, "maximum_aqi": 428, "month_str": "Oct 2023"}, {"month": "2023-11-01 00:00:00", "observations": 7200, "average_aqi": 167.33, "median_aqi": 152, "maximum_aqi": 494, "month_str": "Nov 2023"}, {"month": "2023-12-01 00:00:00", "observations": 7422, "average_aqi": 152.81, "median_aqi": 135, "maximum_aqi": 452, "month_str": "Dec 2023"}, {"month": "2024-01-01 00:00:00", "observations": 7490, "average_aqi": 157.63, "median_aqi": 138, "maximum_aqi": 456, "month_str": "Jan 2024"}, {"month": "2024-02-01 00:00:00", "observations": 6925, "average_aqi": 120.88, "median_aqi": 106, "maximum_aqi": 471, "month_str": "Feb 2024"}, {"month": "2024-03-01 00:00:00", "observations": 7582, "average_aqi": 108.91, "median_aqi": 100, "maximum_aqi": 347, "month_str": "Mar 2024"}, {"month": "2024-04-01 00:00:00", "observations": 7148, "average_aqi": 111.17, "median_aqi": 100, "maximum_aqi": 436, "month_str": "Apr 2024"}, {"month": "2024-05-01 00:00:00", "observations": 7273, "average_aqi": 108.42, "median_aqi": 97, "maximum_aqi": 374, "month_str": "May 2024"}, {"month": "2024-06-01 00:00:00", "observations": 6868, "average_aqi": 89.76, "median_aqi": 75, "maximum_aqi": 440, "month_str": "Jun 2024"}, {"month": "2024-07-01 00:00:00", "observations": 7100, "average_aqi": 62.15, "median_aqi": 53, "maximum_aqi": 363, "month_str": "Jul 2024"}, {"month": "2024-08-01 00:00:00", "observations": 7105, "average_aqi": 55.24, "median_aqi": 50, "maximum_aqi": 320, "month_str": "Aug 2024"}, {"month": "2024-09-01 00:00:00", "observations": 7222, "average_aqi": 63.15, "median_aqi": 56, "maximum_aqi": 310, "month_str": "Sep 2024"}, {"month": "2024-10-01 00:00:00", "observations": 7765, "average_aqi": 98.66, "median_aqi": 86, "maximum_aqi": 500, "month_str": "Oct 2024"}, {"month": "2024-11-01 00:00:00", "observations": 7719, "average_aqi": 153.14, "median_aqi": 141, "maximum_aqi": 494, "month_str": "Nov 2024"}, {"month": "2024-12-01 00:00:00", "observations": 7549, "average_aqi": 131.51, "median_aqi": 116, "maximum_aqi": 451, "month_str": "Dec 2024"}, {"month": "2025-01-01 00:00:00", "observations": 7039, "average_aqi": 131.37, "median_aqi": 118, "maximum_aqi": 422, "month_str": "Jan 2025"}, {"month": "2025-02-01 00:00:00", "observations": 6424, "average_aqi": 112.87, "median_aqi": 104, "maximum_aqi": 384, "month_str": "Feb 2025"}, {"month": "2025-03-01 00:00:00", "observations": 7120, "average_aqi": 105.54, "median_aqi": 98, "maximum_aqi": 401, "month_str": "Mar 2025"}, {"month": "2025-04-01 00:00:00", "observations": 6746, "average_aqi": 99.39, "median_aqi": 91, "maximum_aqi": 380, "month_str": "Apr 2025"}], "state_shares": [{"state": "Andaman and Nicobar Islands", "Good share": 44.83, "Satisfactory share": 48.28, "Moderate share": 6.9, "Poor share": 0.0, "Very Poor share": 0.0, "Severe share": 0.0}, {"state": "Andhra Pradesh", "Good share": 29.28, "Satisfactory share": 49.95, "Moderate share": 17.92, "Poor share": 2.66, "Very Poor share": 0.17, "Severe share": 0.03}, {"state": "Arunachal Pradesh", "Good share": 53.63, "Satisfactory share": 37.52, "Moderate share": 8.84, "Poor share": 0.0, "Very Poor share": 0.0, "Severe share": 0.0}, {"state": "Assam", "Good share": 26.8, "Satisfactory share": 35.22, "Moderate share": 18.51, "Poor share": 13.94, "Very Poor share": 5.18, "Severe share": 0.35}, {"state": "Bihar", "Good share": 6.98, "Satisfactory share": 27.5, "Moderate share": 37.8, "Poor share": 17.39, "Very Poor share": 8.96, "Severe share": 1.38}, {"state": "Chandigarh", "Good share": 5.6, "Satisfactory share": 28.44, "Moderate share": 46.04, "Poor share": 15.73, "Very Poor share": 4.09, "Severe share": 0.09}, {"state": "Chhattisgarh", "Good share": 23.24, "Satisfactory share": 53.87, "Moderate share": 21.2, "Poor share": 1.64, "Very Poor share": 0.05, "Severe share": 0.0}, {"state": "Delhi", "Good share": 0.36, "Satisfactory share": 16.89, "Moderate share": 35.82, "Poor share": 25.6, "Very Poor share": 18.04, "Severe share": 3.29}, {"state": "Gujarat", "Good share": 10.12, "Satisfactory share": 42.35, "Moderate share": 38.79, "Poor share": 7.76, "Very Poor share": 0.98, "Severe share": 0.0}, {"state": "Haryana", "Good share": 8.31, "Satisfactory share": 30.86, "Moderate share": 38.81, "Poor share": 17.01, "Very Poor share": 4.61, "Severe share": 0.41}, {"state": "Himachal Pradesh", "Good share": 1.03, "Satisfactory share": 21.48, "Moderate share": 53.94, "Poor share": 18.48, "Very Poor share": 4.69, "Severe share": 0.38}, {"state": "Jammu and Kashmir", "Good share": 39.5, "Satisfactory share": 45.43, "Moderate share": 13.24, "Poor share": 1.83, "Very Poor share": 0.0, "Severe share": 0.0}, {"state": "Jharkhand", "Good share": 0.97, "Satisfactory share": 7.63, "Moderate share": 70.04, "Poor share": 18.17, "Very Poor share": 3.05, "Severe share": 0.14}, {"state": "Karnataka", "Good share": 43.99, "Satisfactory share": 45.2, "Moderate share": 10.45, "Poor share": 0.33, "Very Poor share": 0.02, "Severe share": 0.01}, {"state": "Kerala", "Good share": 22.57, "Satisfactory share": 68.8, "Moderate share": 7.82, "Poor share": 0.81, "Very Poor share": 0.0, "Severe share": 0.0}, {"state": "Madhya Pradesh", "Good share": 14.65, "Satisfactory share": 38.31, "Moderate share": 38.49, "Poor share": 7.44, "Very Poor share": 1.08, "Severe share": 0.03}, {"state": "Maharashtra", "Good share": 15.93, "Satisfactory share": 36.23, "Moderate share": 42.65, "Poor share": 4.89, "Very Poor share": 0.3, "Severe share": 0.0}, {"state": "Manipur", "Good share": 1.82, "Satisfactory share": 51.21, "Moderate share": 44.55, "Poor share": 1.82, "Very Poor share": 0.36, "Severe share": 0.24}, {"state": "Meghalaya", "Good share": 53.66, "Satisfactory share": 28.6, "Moderate share": 16.48, "Poor share": 1.14, "Very Poor share": 0.0, "Severe share": 0.11}, {"state": "Mizoram", "Good share": 63.0, "Satisfactory share": 30.0, "Moderate share": 7.0, "Poor share": 0.0, "Very Poor share": 0.0, "Severe share": 0.0}, {"state": "Nagaland", "Good share": 20.17, "Satisfactory share": 54.86, "Moderate share": 24.45, "Poor share": 0.52, "Very Poor share": 0.0, "Severe share": 0.0}, {"state": "Odisha", "Good share": 11.69, "Satisfactory share": 33.19, "Moderate share": 40.07, "Poor share": 13.24, "Very Poor share": 1.79, "Severe share": 0.01}, {"state": "Puducherry", "Good share": 49.81, "Satisfactory share": 44.95, "Moderate share": 4.49, "Poor share": 0.75, "Very Poor share": 0.0, "Severe share": 0.0}, {"state": "Punjab", "Good share": 6.87, "Satisfactory share": 39.87, "Moderate share": 42.99, "Poor share": 9.15, "Very Poor share": 1.1, "Severe share": 0.02}, {"state": "Rajasthan", "Good share": 5.6, "Satisfactory share": 34.45, "Moderate share": 47.2, "Poor share": 10.23, "Very Poor share": 2.34, "Severe share": 0.17}, {"state": "Sikkim", "Good share": 46.53, "Satisfactory share": 47.01, "Moderate share": 5.86, "Poor share": 0.6, "Very Poor share": 0.0, "Severe share": 0.0}, {"state": "Tamil Nadu", "Good share": 39.47, "Satisfactory share": 45.96, "Moderate share": 12.89, "Poor share": 1.47, "Very Poor share": 0.21, "Severe share": 0.0}, {"state": "Telangana", "Good share": 7.29, "Satisfactory share": 72.98, "Moderate share": 19.73, "Poor share": 0.0, "Very Poor share": 0.0, "Severe share": 0.0}, {"state": "Tripura", "Good share": 21.26, "Satisfactory share": 30.72, "Moderate share": 24.06, "Poor share": 20.77, "Very Poor share": 3.19, "Severe share": 0.0}, {"state": "Uttar Pradesh", "Good share": 12.92, "Satisfactory share": 32.62, "Moderate share": 38.21, "Poor share": 12.58, "Very Poor share": 3.47, "Severe share": 0.21}, {"state": "Uttarakhand", "Good share": 22.47, "Satisfactory share": 46.7, "Moderate share": 27.49, "Poor share": 3.22, "Very Poor share": 0.13, "Severe share": 0.0}, {"state": "West Bengal", "Good share": 20.56, "Satisfactory share": 32.87, "Moderate share": 31.74, "Poor share": 13.02, "Very Poor share": 1.81, "Severe share": 0.0}], "overview": {"Source workbook": "aqi_cleaned.xlsx", "Complete AQI observations": 235785, "Date coverage": "2022-04-01 to 2025-04-30", "States / territories": 32, "Cities / areas": 291, "Average AQI": 111.13, "Median AQI": 92, "Minimum AQI": 3, "Maximum AQI": 500, "AQI standard deviation": 71.45, "AQI status labels aligned to AQI bands": 0, "AQI category bands": "Good 0-50; Satisfactory 51-100; Moderate 101-200; Poor 201-300; Very Poor 301-400; Severe 401-500", "Season definitions": "Winter: Dec-Feb; Summer: Mar-May; Monsoon: Jun-Sep; Post-monsoon: Oct-Nov", "City ranking minimum sample": "30 observations per city", "Year coverage note": "First and last years may be partial."}, "insights": {"Highest-average-AQI state": "Delhi: 206.42 across 1,125 observations", "Lowest-average-AQI state": "Mizoram: 47.25 across 1,000 observations", "Highest-average-AQI month": "December 2022: 173.90", "Lowest-average-AQI month": "August 2024: 55.24", "Most common AQI category": "Satisfactory: 88,897 observations (37.70%)", "Most-mentioned pollutants": "PM10 (135,806), PM2.5 (78,030), O3 (24,951), CO (18,148), NO2 (6,025)", "Highest city average (30+ observations)": "Byrnihat, Assam: 240.00", "Interpretation note": "These are descriptive summaries of the supplied monitoring records; they do not establish causes or population-wide exposure."}};
+
+    function getAqiBadge(val) {
+      if (val <= 50) return `<span class="pill" style="background:var(--good)">Good (${val})</span>`;
+      if (val <= 100) return `<span class="pill" style="background:var(--satisfactory); color:#1e293b">Satisfactory (${val})</span>`;
+      if (val <= 200) return `<span class="pill" style="background:var(--moderate); color:#1e293b">Moderate (${val})</span>`;
+      if (val <= 300) return `<span class="pill" style="background:var(--poor)">Poor (${val})</span>`;
+      if (val <= 400) return `<span class="pill" style="background:var(--very-poor)">Very Poor (${val})</span>`;
+      return `<span class="pill" style="background:var(--severe)">Severe (${val})</span>`;
+    }
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-pane').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
+      document.getElementById('tab-' + tabId).classList.add('active');
+      event.currentTarget.classList.add('active');
+    }
+
+    function toggleTheme() {
+      const body = document.body;
+      const btn = document.getElementById('themeBtn');
+      if (body.getAttribute('data-theme') === 'dark') {
+        body.setAttribute('data-theme', 'light');
+        btn.textContent = '🌙 Dark Mode';
+      } else {
+        body.setAttribute('data-theme', 'dark');
+        btn.textContent = '☀️ Light Mode';
+      }
+    }
+
+    // Render Tables
+    function renderTables() {
+      // Top 10 cities
+      const topCitiesBody = document.getElementById('topCitiesTable');
+      topCitiesBody.innerHTML = DATA.cities.slice(0, 10).map((c, i) => `
+        <tr>
+          <td><strong>#${i+1}</strong></td>
+          <td>${c.area}</td>
+          <td>${c.state}</td>
+          <td><strong>${c.average_aqi.toFixed(1)}</strong></td>
+          <td>${getAqiBadge(c.average_aqi)}</td>
+        </tr>
+      `).join('');
+
+      // Cleanest states
+      const cleanStatesBody = document.getElementById('cleanStatesTable');
+      const cleanStates = [...DATA.states].reverse().slice(0, 8);
+      cleanStatesBody.innerHTML = cleanStates.map((s, i) => `
+        <tr>
+          <td><strong>#${i+1}</strong></td>
+          <td>${s.state}</td>
+          <td><strong>${s.average_aqi.toFixed(1)}</strong></td>
+          <td>${s.median_aqi.toFixed(1)}</td>
+          <td>${s.observations.toLocaleString()}</td>
+        </tr>
+      `).join('');
+
+      // All states
+      const allStatesBody = document.querySelector('#allStatesTable tbody');
+      allStatesBody.innerHTML = DATA.states.map(s => `
+        <tr>
+          <td><strong>${s.state}</strong></td>
+          <td>${s.average_aqi.toFixed(1)}</td>
+          <td>${s.median_aqi.toFixed(1)}</td>
+          <td>${s.maximum_aqi}</td>
+          <td>${s.cities}</td>
+          <td>${s.observations.toLocaleString()}</td>
+          <td>${getAqiBadge(s.average_aqi)}</td>
+        </tr>
+      `).join('');
+
+      // State Shares
+      const sharesBody = document.querySelector('#stateSharesTable tbody');
+      sharesBody.innerHTML = DATA.state_shares.slice(0, 15).map(s => {
+        const poorPlus = (s['Poor share'] || 0) + (s['Very Poor share'] || 0) + (s['Severe share'] || 0);
+        return `
+          <tr>
+            <td><strong>${s.state}</strong></td>
+            <td>${s['Good share']}%</td>
+            <td>${s['Satisfactory share']}%</td>
+            <td>${s['Moderate share']}%</td>
+            <td style="color:var(--very-poor); font-weight:700">${poorPlus.toFixed(1)}%</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function filterStatesTable() {
+      const q = document.getElementById('stateSearch').value.toLowerCase();
+      document.querySelectorAll('#allStatesTable tbody tr').forEach(row => {
+        const text = row.cells[0].textContent.toLowerCase();
+        row.style.display = text.includes(q) ? '' : 'none';
+      });
+    }
+
+    // Render Charts using Chart.js
+    function renderCharts() {
+      if (typeof Chart === 'undefined') return;
+
+      // 1. Monthly Trend
+      new Chart(document.getElementById('monthlyTrendChart'), {
+        type: 'line',
+        data: {
+          labels: DATA.monthly.map(m => m.month_str),
+          datasets: [{
+            label: 'Average AQI',
+            data: DATA.monthly.map(m => m.average_aqi),
+            borderColor: '#38bdf8',
+            backgroundColor: 'rgba(56, 189, 248, 0.15)',
+            borderWidth: 2.5,
+            fill: true,
+            tension: 0.35,
+            pointRadius: 2,
+            pointHoverRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { grid: { color: 'rgba(148, 163, 184, 0.1)' } },
+            x: { grid: { display: false } }
+          }
+        }
+      });
+
+      // 2. Category Donut
+      new Chart(document.getElementById('categoryDonutChart'), {
+        type: 'doughnut',
+        data: {
+          labels: DATA.categories.map(c => c.category),
+          datasets: [{
+            data: DATA.categories.map(c => c.observations),
+            backgroundColor: [
+              '#10b981', // Good
+              '#84cc16', // Satisfactory
+              '#eab308', // Moderate
+              '#f97316', // Poor
+              '#ef4444', // Very Poor
+              '#991b1b'  // Severe
+            ],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 11 } } }
+          }
+        }
+      });
+
+      // 3. Top States Bar
+      const top10 = DATA.states.slice(0, 10);
+      new Chart(document.getElementById('topStatesChart'), {
+        type: 'bar',
+        data: {
+          labels: top10.map(s => s.state),
+          datasets: [{
+            label: 'Average AQI',
+            data: top10.map(s => s.average_aqi),
+            backgroundColor: top10.map(s => s.average_aqi >= 200 ? '#ef4444' : (s.average_aqi >= 150 ? '#f97316' : '#eab308')),
+            borderRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          indexAxis: 'y',
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { grid: { color: 'rgba(148, 163, 184, 0.1)' } },
+            y: { grid: { display: false } }
+          }
+        }
+      });
+
+      // 4. Pollutants Bar
+      const topPollutants = DATA.pollutants.slice(0, 6);
+      new Chart(document.getElementById('pollutantsChart'), {
+        type: 'bar',
+        data: {
+          labels: topPollutants.map(p => p.pollutant),
+          datasets: [{
+            label: '% Share',
+            data: topPollutants.map(p => p.share_of_pollutant_mentions_percent),
+            backgroundColor: '#0284c7',
+            borderRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { grid: { color: 'rgba(148, 163, 184, 0.1)' } },
+            x: { grid: { display: false } }
+          }
+        }
+      });
+
+      // 5. Seasonal Chart
+      new Chart(document.getElementById('seasonChart'), {
+        type: 'bar',
+        data: {
+          labels: DATA.seasons.map(s => s.season),
+          datasets: [{
+            label: 'Average AQI',
+            data: DATA.seasons.map(s => s.average_aqi),
+            backgroundColor: ['#ef4444', '#f97316', '#10b981', '#eab308'],
+            borderRadius: 8
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { grid: { color: 'rgba(148, 163, 184, 0.1)' } }
+          }
+        }
+      });
+
+      // 6. Weekday Chart
+      new Chart(document.getElementById('weekdayChart'), {
+        type: 'line',
+        data: {
+          labels: DATA.weekdays.map(w => w.weekday),
+          datasets: [{
+            label: 'Average AQI',
+            data: DATA.weekdays.map(w => w.average_aqi),
+            borderColor: '#a855f7',
+            backgroundColor: 'rgba(168, 85, 247, 0.15)',
+            borderWidth: 2.5,
+            fill: true,
+            tension: 0.3,
+            pointRadius: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { min: 105, max: 115, grid: { color: 'rgba(148, 163, 184, 0.1)' } }
+          }
+        }
+      });
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      renderTables();
+      renderCharts();
+    });
+  </script>
+</body>
+</html>
